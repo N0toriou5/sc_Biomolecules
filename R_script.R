@@ -161,11 +161,11 @@ kexpvar <- apply(kmat, 1, var)
 
 
 # Define pseudovalues for log10 transform
-min(kexpmean[kexpmean!=  0]) # 0.0006598291
-min(bexpmean[bexpmean!=  0]) # 0.0003172931
+min(kexpmean[kexpmean!=0]) # 0.0006598291
+min(bexpmean[bexpmean!=0]) # 0.0003172931
 pseudo <- 0.0001
-min(kexpvar[kexpvar!=  0]) # 0.0003762165
-min(bexpvar[bexpvar!=  0]) # 0.00009684925
+min(kexpvar[kexpvar!=0]) # 0.0003762165
+min(bexpvar[bexpvar!=0]) # 0.00009684925
 pseudov <- 0.0001
 
 
