@@ -232,3 +232,38 @@ corto::scatter(bres, kres, xlab =  "BE2C Log10 Variance", ylab =  "Kelly Log10 V
 textplot3(bres[toshow], kres[toshow], words =  toshow, font =  2)
 dev.off()
 
+### Housekeeping and MYCN expression ----
+genes <- c("ACTB", "GAPDH", "B2M", "GUSB")
+png("plots/003_exp_vs_mycn.png", w =  4000, h =  2500, res =  300)
+par(mfrow =  c(2, 4))
+for(gene in genes){
+  corto::scatter(log10(bmat["MYCN",]+pseudo), log10(bmat[gene,]+pseudo), main =  "BE2C",
+                 col =  col_be2c, xlab =  "MYCN", ylab =  gene)
+}
+for(gene in genes){
+  corto::scatter(log10(kmat["MYCN",]+pseudo), log10(kmat[gene,]+pseudo), main =  "Kelly",
+                 col =  col_kelly, xlab =  "MYCN", ylab =  gene)
+}
+dev.off()
+
+### Expression vs. Cells with Gene ----
+# Nr. cells with gene > 0
+bcells <- apply(bmat, 1, function(x){sum(x>0)})
+kcells <- apply(kmat, 1, function(x){sum(x>0)})
+
+png("plots/003_nrcells_be2c.png", w =  4000, h =  3000, res =  600)
+set.seed(2)
+plot(bcells, bx, pch =  20, col =  col_be2c, xlim =  c(-200,1400), xlab =  "Nr. Cells with Gene > 0 TPM",
+     ylab =  "Log10 Average Expression (TPM)", main =  "BE2C")
+mtext(paste0("Total: ", ncol(bmat), " cells"), cex =  1, font =  2)
+textplot3(bcells[toshow], bx[toshow], words =  toshow, font =  2)
+dev.off()
+
+png("plots/003_nrcells_kelly.png", w =  4000, h =  3000, res =  600)
+set.seed(2)
+plot(kcells, kx, pch =  20, col =  col_kelly, xlim =  c(-200,1400), xlab =  "Nr. Cells with Gene > 0 TPM",
+     ylab =  "Log10 Average Expression (TPM)", main =  "Kelly")
+textplot3(kcells[toshow], kx[toshow], words =  toshow, font =  2)
+mtext(paste0("Total: ", ncol(kmat)," cells"), cex =  1, font =  2)
+dev.off()
+
