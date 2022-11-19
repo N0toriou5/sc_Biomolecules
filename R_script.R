@@ -281,3 +281,15 @@ axis(2, at =  c(0:9), labels =  c(-4:5))
 error.bar(bp[,1], value, error)
 dev.off()
 
+# Kelly
+png("plots/003_somegenes_kelly.png", w =  4000, h =  3000, res =  600)
+par(las =  2)
+value <- sort(kx[toshow], dec =  TRUE)+4
+error <- kres[toshow]
+bp <- barplot(value, main =  "Kelly", col =  col_kelly, ylab =  c("Log10 Average Expression (TPM)"),
+              ylim =  c(0,9), yaxt =  "n")
+axis(2, at =  c(0:9), labels =  c(-4:5))
+error.bar(bp[, 1], value, error)
+dev.off()
+
+# Expression by chromosome band
