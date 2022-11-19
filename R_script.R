@@ -293,3 +293,383 @@ error.bar(bp[, 1], value, error)
 dev.off()
 
 # Expression by chromosome band
+### Chromosome bands ----
+fname <- "data/mlist.rda"
+if(!file.exists(fname)){
+  mdf <- msigdbr(species =  "Homo sapiens") # Retrieve all human gene sets
+  mlist <- mdf %>% split(x =  .$gene_symbol, f =  .$gs_name)
+  save(mlist, file =  fname)
+}else{load(fname)}
+chrom_bands  <-  mlist[grep("chr", names(mlist))] 
+chrs <- c("chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12", "chr13",
+        "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22", "chrX", "chrY")
+
+# Find gene
+gene <- "MYCN"
+for(i in 1:length(chrom_bands)){
+  band <- names(chrom_bands)[i]
+  genes_here <- chrom_bands[[band]]
+  if(gene%in%genes_here){
+    message(gene, " is in ",b and)
+  }
+}
+# MYCN is in chr2p24
+
+
+# Kelly
+cols <- c()
+pickcols <- c("royalblue4", "skyblue")
+means <- c()
+coords <- c()
+for(i in 1:length(chrs)){
+  chr <- chrs[i]
+  herecol <- pickcols[(i%%2)+1]
+  sub <- chrom_bands[grep(paste0(chr, "(p|q)"), names(chrom_bands))]
+  herecols <- rep(herecol,length(sub))
+  cols <- c(cols,herecols)
+  coords <- c(coords,rep(chr,length(sub)))
+  for(band in names(sub)){
+    genes_here <- sub[[band]]
+    genes_here <- intersect(rownames(kmat),genes_here)
+    allexp <- kmat[genes_here, ]
+    mean <- mean(allexp)
+    means <- c(means, mean)
+    names(means)[length(means)] <- band
+  }
+}
+
+png("plots/003_chrom_kelly.png", w =  11000, h =  1000, res =  300)
+par(las =  2)
+bp <- barplot(means, col =  cols, ylab =  "Mean expression in band (TPM)", xaxt =  "n", 
+              main =  "Kelly gene expression by chromosome band", ylim =  c(0, 650))
+for(i in 1:length(chrs)){
+  chr <- chrs[i]
+  xwhere <- mean(bp[which(coords == chr)])
+  text(xwhere, 600, labels =  chr, font =  2)
+}
+axis(1, at =  bp, labels =  names(means), cex.axis =  0.7)
+dev.off()
+
+# BE2C
+cols <- c()
+pickcols <- c("red3", "salmon")
+means <- c()
+coords <- c()
+for(i in 1:length(chrs)){
+  chr <- chrs[i]
+  herecol <- pickcols[(i%%2)+1]
+  sub <- chrom_bands[grep(paste0(chr, "(p|q)"), names(chrom_bands))]
+  herecols <- rep(herecol, length(sub))
+  cols <- c(cols, herecols)
+  coords <- c(coords, rep(chr, length(sub)))
+  for(band in names(sub)){
+    genes_here <- sub[[band]]
+    genes_here <- intersect(rownames(bmat), genes_here)
+    allexp <- bmat[genes_here, ]
+    mean <- mean(allexp)
+    means <- c(means, mean)
+    names(means)[length(means)] <- band
+  }
+}
+
+png("plots/003_chrom_be2c.png", w =  11000, h =  1000, res =  300)
+par(las =  2)
+bp <- barplot(means, col =  cols, ylab =  "Mean expression in band (TPM)", xaxt =  "n", main =  "BE2C gene expression by chromosome band", ylim =  c(0, 650))
+for(i in 1:length(chrs)){
+  chr <- chrs[i]
+  xwhere <- mean(bp[which(coords == chr)])
+  text(xwhere, 600, labels =  chr, font =  2)
+}
+axis(1, at =  bp, labels =  names(means), cex.axis =  0.7)
+dev.off()
+
+# Comparison with bulk RNA-Seq data
+# Loading the Harenza dataset
+fname <- "data/harenza/rawcounts_symbols.rda"
+if(!file.exists(fname)){
+  ### Load counts (from CellRanger) ----
+  rawcounts <- read.delim("data/harenza/harenza.counts.txt.gz", as.is =  TRUE, skip =  1, row.names =  1)
+  rawcounts <- as.matrix(rawcounts[, 6:ncol(rawcounts)])
+  colnames(rawcounts) <- gsub("\\.sorted\\.bam", "", colnames(rawcounts))
+  colnames(rawcounts) <- gsub("harenza_", "", colnames(rawcounts))
+  colnames(rawcounts) <- gsub("_.+", "", colnames(rawcounts))
+  colnames(rawcounts) <- gsub("\\.", "-", colnames(rawcounts))
+  save(rawcounts, file =  "data/harenza/rawcounts_ensg.rda")
+  dim(rawcounts) # 58721 genes,  40 samples
+  ## Convert to gene symbols
+  ensgmat <- rawcounts
+  rownames(ensgmat) <- gsub("\\..+", "", rownames(ensgmat))
+  tmp <- ens2eg(rownames(ensgmat))
+  convlist <- eg2sym(tmp)
+  names(convlist) <- names(tmp)
+  rawcounts <- squish(ensgmat, convlist =  convlist, method =  "sum", verbose =  TRUE)
+  dim(rawcounts) # 26131 genes,  40 samples
+  save(rawcounts, file =  fname)
+} else {load(fname)}
+
+
+### Normalization ----
+# Extract gene lengths (more precisely,  transcript lengths)
+fname <- "data/genelengths.rda"
+if(!file.exists(fname)){
+  library(GenomicFeatures)
+  supportedUCSCtables(genome =  "hg38",  url =  "http://genome.ucsc.edu/cgi-bin/")
+  hg <- makeTxDbFromUCSC(genome =  "hg38", tablename =  "refGene")
+  exonic <- exonsBy(hg, by =  "gene")
+  redexonic <- reduce(exonic)
+  genelengths <- sum(width(redexonic))
+  names(genelengths) <- eg2sym(names(genelengths))
+  genelengths <- genelengths[!duplicated(names(genelengths))]
+  genelengths <- genelengths[genelengths>0]
+  genelengths <- genelengths[!is.na(genelengths)]
+  save(genelengths, file =  fname)
+}else{load(fname)}
+
+
+
+# Function to calculate FPKM (https://www.rna-seqblog.com/rpkm-fpkm-and-tpm-clearly-explained/)
+fpkm <- function(counts, genelengths){
+  common <- intersect(rownames(counts), names(genelengths))
+  counts <- counts[common, ]
+  lengths <- genelengths[common]
+  fpms <- apply(counts, 2, function(x){1E6*x/sum(x)})
+  fpkms <- fpms
+  for(i in 1:nrow(fpms)){
+    fpkms[i, ] <- 1E3*fpms[i, ]/lengths[i]
+  }
+  return(fpkms)
+}
+fname <- "data/harenza/fpkms.rda"
+if(!file.exists(fname)){
+  fpkms <- fpkm(rawcounts, genelengths)
+  save(fpkms, file =  fname)
+}
+# Function to calculate TPM (https://www.rna-seqblog.com/rpkm-fpkm-and-tpm-clearly-explained/)
+tpm <- function(counts, genelengths){
+  common <- intersect(rownames(counts), names(genelengths))
+  counts <- counts[common, ]
+  lengths <- genelengths[common]
+  intermediate <- counts
+  for(i in 1:nrow(counts)){
+    intermediate[i, ] <- 1E3*counts[i, ]/lengths[i]
+  }
+  tpms <- apply(intermediate, 2, function(x){1E6*x/sum(x)})
+  return(tpms)
+}
+fname <- "data/harenza/tpms.rda"
+if(!file.exists(fname)){
+  tpms <- tpm(rawcounts, genelengths)
+  save(tpms, file =  fname)
+}
+
+# Variance-Stabilizing Transformation (expmat)
+fname <- "data/harenza/vstmat.rda"
+if(!file.exists(fname)){
+  vstmat <- vst(rawcounts)
+  save(vstmat, file =  fname)
+}
+
+# comparison between sc and bulk
+### Load data ----
+# Harenza
+load("data/harenza/tpms.rda")
+harenza <- tpms
+# Our own
+load("data/tpms.rda")
+data <- tpms
+bmat <- data[, grep("be2c", colnames(data))]
+kmat <- data[, grep("kelly", colnames(data))]
+b <- apply(bmat, 1, sum)
+k <- apply(kmat, 1, sum)
+# Correct names
+colnames(harenza)[colnames(harenza) == "SK-N-BE-2--C"] <- "BE2C"
+colnames(harenza)[colnames(harenza) == "SK-N-BE-2-"] <- "BE2"
+
+### Correlation matrices ----
+output <- matrix(NA, nrow =  ncol(harenza), ncol =  2)
+colnames(output) <- c("SCC", "SCC p-value")
+rownames(output) <- colnames(harenza)
+
+# Kelly
+grpm <- k
+for (i in 1:ncol(harenza)){
+    cellname <- colnames(harenza)[i]
+    message("Doing ", cellname)
+    hrpm <- harenza[, cellname]
+    common <- intersect(names(grpm), names(hrpm))
+    grpm <- grpm[common]
+    hrpm <- hrpm[common]
+    x <- grpm
+    y <- hrpm
+    
+    ii <- 1
+    for(cortype in c("s")){
+        cortest <- cor.test(x, y, method =  cortype)
+        coeff <- signif(cortest$estimate, 4)
+        p <- signif(cortest$p.value, 3)
+        output[i, ii] <- coeff
+        ii <- ii+1
+        output[i, ii] <- p
+        ii <- ii+1
+    }
+}
+output <- output[order(-output[, 1]), ]
+
+pander(output, style =  "rmarkdown") # Correlation between Kelly single cell dataset and other datasets
+png("plots/005_cortests_kelly_vs_harenza.png", w =  2000, h =  5000, res =  350)
+grid.newpage()
+grid.table(output, theme =  ttheme_default(base_colour =  "navy"))
+dev.off()
+write.xlsx2(output, file =  "results/Supp_Table_S2_Kelly_vs_Bulk.xlsx")
+
+# BE2C
+output <- matrix(NA, nrow =  ncol(harenza), ncol =  2)
+colnames(output) <- c("SCC", "SCC p-value")
+rownames(output) <- colnames(harenza)
+grpm <- b
+for (i in 1:ncol(harenza)){
+    cellname <- colnames(harenza)[i]
+    message("Doing ", cellname)
+    hrpm <- harenza[, cellname]
+    common <- intersect(names(grpm), names(hrpm))
+    grpm <- grpm[common]
+    hrpm <- hrpm[common]
+    x <- grpm
+    y <- hrpm
+    
+    ii <- 1
+    for(cortype in c("s")){
+        cortest <- cor.test(x, y, method =  cortype)
+        coeff <- signif(cortest$estimate, 4)
+        p <- signif(cortest$p.value, 3)
+        output[i, ii] <- coeff
+        ii <- ii+1
+        output[i, ii] <- p
+        ii <- ii+1
+    }
+}
+output <- output[order(-output[, 1]), ]
+
+pander(output, style =  "rmarkdown") # Correlation between BE2C single cell dataset and other datasets
+png("plots/005_cortests_be2c_vs_harenza.png", w =  2000, h =  5000, res =  350)
+grid.table(output, theme =  ttheme_default(base_colour =  "red3"))
+dev.off()
+write.xlsx2(output, file =  "results/Supp_Table_S1_BE2C_vs_Bulk.xlsx")
+
+### Scatter plots bulk vs sc ----
+pseudo <- 0.0001
+toshow <- c("MYCN", "GAPDH", "GUSB", "ACTB", "B2M")
+# Kelly
+x <- log10(k+pseudo)
+y <- log10(harenza[, "KELLY"]+pseudo)
+png("plots/005_scatter_kelly.png", w =  4000, h =  3000, res =  600)
+scatter(x, y, xlab =  "Single Cell RNA-Seq (Sum of TPMs)", ylab =  "Bulk RNA-Seq (TPM)", 
+        main =  "Kelly cells", col =  col_kelly, method =  "spearman")
+textplot3(x[toshow], y[toshow], words =  toshow, font =  2)
+dev.off()
+
+# BE2C
+x <- log10(b+pseudo)
+y <- log10(harenza[, "BE2C"]+pseudo)
+
+png("plots/005_scatter_be2c.png", w =  4000, h =  3000, res =  600)
+scatter(x, y, xlab =  "Single Cell RNA-Seq (Sum of TPMs)", ylab =  "Bulk RNA-Seq (TPM)", 
+        main =  "BE2C cells", col =  col_be2c, method =  "spearman")
+textplot3(x[toshow], y[toshow], words =  toshow, font =  2)
+dev.off()
+
+### Rtsne ----
+# Load cell line annotation
+cl <- read.csv("data/NBLcellLines.csv", header =  TRUE)
+cl <- setNames(cl[, 4], cl[, 1])
+
+# Everything together
+lh <- log10(harenza+pseudo)
+lk <- log10(k+pseudo)
+lb <- log10(b+pseudo)
+common <- intersect(rownames(lh), intersect(names(lk), names(lb)))
+tsnemat <- cbind(lh[common, ], lk[common], lb[common])
+colnames(tsnemat)[(ncol(tsnemat)-1):ncol(tsnemat)] <- c("scKELLY", "scBE2C")
+# Prepare the matrix
+topvars <- names(sort(apply(tsnemat, 1, var), decreasing =  TRUE))[1:5000]
+tsnemat <- tsnemat[topvars, ]
+# Seed for TSNE and calculate TSNE
+set.seed(4)
+ttt <- Rtsne(t(tsnemat), perplexity =  10)
+
+
+# Start preparing the plot
+x <- setNames(ttt$Y[, 1], colnames(tsnemat))
+y <- setNames(ttt$Y[, 2], colnames(tsnemat))
+# Shapes
+shapes <- rep(15, length(x))
+names(shapes) <- names(x)
+shapes[names(cl[cl == "notAmplified"])] <- 16
+png("plots/005_tsne_with_bulk.png", w =  3000, h =  3000, res =  500)
+plot(x, y, pch =  shapes, xlab =  "TSNE1", ylab =  "TSNE2", main =  "TSNE Representation of NBL Cell Lines", 
+     xlim =  1.1*c(min(x), max(x)), ylim =  1.1*c(min(y), max(y)), 
+     col =  c(rep("#00000099", length(x)-2), col_kelly, col_be2c)
+)
+set.seed(4)
+textplot3(x, y, words =  names(x), cex =  0.8, 
+          font =  c(rep(1, length(x)-2), 2, 2), 
+          col =  c(rep("black", length(x)-2), col_kelly, col_be2c), padding =  "  ", pos =  3, offset =  0.1
+)
+legend("bottomleft", pch =  c(15, 16), c("Amplified", "Not Amplified"), title =  "MYCN status")
+dev.off()
+
+# Again without BE2C
+x <- setNames(ttt$Y[, 1], colnames(tsnemat))
+y <- setNames(ttt$Y[, 2], colnames(tsnemat))
+x <- x[1:(length(x)-1)]
+y <- y[1:(length(y)-1)]
+# Shapes
+shapes <- rep(15, length(x))
+names(shapes) <- names(x)
+shapes[names(cl[cl == "notAmplified"])] <- 16
+
+png("plots/005_tsne_with_bulk_Kelly.png", w =  6000, h =  3000, res =  600)
+plot(x, y, pch =  shapes, xlab =  "TSNE1", ylab =  "TSNE2", main =  "Clustering of NBL Cell Lines", 
+     xlim =  1.1*c(min(x), max(x)), ylim =  1.1*c(min(y), max(y)), 
+     col =  c(rep("#00000099", length(x)-1), col_kelly)
+)
+set.seed(4)
+textplot3(x, y, words =  names(x), cex =  0.8, 
+          font =  c(rep(1, length(x)-1), 2), 
+          col =  c(rep("black", length(x)-1), col_kelly), padding =  "  ", pos =  3, offset =  0.1
+)
+legend("bottomleft", pch =  c(15, 16), c("Amplified", "Not Amplified"), title =  "MYCN status")
+dev.off()
+
+# Clustering single cell data
+### Load Seurat object (already LogNormalized)
+load("data/seuset.rda")
+load("data/rawcounts_symbols.rda")
+
+### Further processing ----
+seuset <- FindVariableFeatures(seuset, selection.method =  "vst", nfeatures =  Inf)
+all.genes <- rownames(seuset)
+seuset <- ScaleData(seuset, features =  all.genes)
+expmat <- as.matrix(seuset[["RNA"]]@scale.data)
+dim(expmat) # 15782 genes,  2067 cells
+
+### Seurat-based clustering ----
+PCA <- RunPCA(seuset, features =  VariableFeatures(seuset))
+
+# TSNE
+set.seed(1)
+TSNE <- RunTSNE(PCA)
+png("plots/006a_tsne_seurat_clustering.png", width =  3000, height =  3000,  res =  600)
+DimPlot(TSNE, reduction =  "tsne", cols =  c(col_be2c, col_kelly))+
+ggtitle('Seurat TSNE clustering of KELLY and BE2C')+
+theme(plot.title =  element_text(hjust =  0.5))
+dev.off()
+
+# UMAP
+set.seed(1)
+UMAP <- RunUMAP(PCA,  dims  =   1:10)
+png("plots/006a_umap_seurat_clustering.png", width =  3000, height =  3000,  res =  600)
+DimPlot(UMAP,  reduction  =   'umap', cols =  c(col_be2c, col_kelly))+
+ggtitle('Seurat UMAP clustering of KELLY and BE2C')+
+theme(plot.title  =   element_text(hjust  =   0.5))
+dev.off()
