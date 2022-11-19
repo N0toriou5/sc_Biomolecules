@@ -267,3 +267,17 @@ textplot3(kcells[toshow], kx[toshow], words =  toshow, font =  2)
 mtext(paste0("Total: ", ncol(kmat)," cells"), cex =  1, font =  2)
 dev.off()
 
+### Selected genes with error bars
+error.bar  <-  function(x, y, upper, length =  0.1,...){
+  arrows(x, y+abs(upper), x, y, angle =  90, code =  3, length =  length, ...)
+}
+# BE2C
+png("plots/003_somegenes_be2c.png", w =  4000, h =  3000, res =  600)
+par(las =  2)
+value <- sort(bx[toshow], dec =  TRUE)+4
+error <- bres[toshow]
+bp <- barplot(value, main =  "BE2C",col =  col_be2c, ylab =  c("Log10 Average Expression (TPM)"), ylim =  c(0, 9), yaxt =  "n")
+axis(2, at =  c(0:9), labels =  c(-4:5))
+error.bar(bp[,1], value, error)
+dev.off()
+
