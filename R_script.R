@@ -673,3 +673,111 @@ DimPlot(UMAP,  reduction  =   'umap', cols =  c(col_be2c, col_kelly))+
 ggtitle('Seurat UMAP clustering of KELLY and BE2C')+
 theme(plot.title  =   element_text(hjust  =   0.5))
 dev.off()
+
+## Cell Cycle clustering
+### Effects of cell cycle and read numbers on clustering ----
+# Cell Cycle Markers,  from Tirosh et al,  2015
+ccgenes <- readLines("data/regev_lab_cell_cycle_genes.txt")
+ccgenes <- eg2sym(sym2eg(ccgenes))
+s.genes  <-  ccgenes[1:43]
+g2m.genes  <-  ccgenes[44:97]
+s.genes <- intersect(s.genes, rownames(seuset))
+g2m.genes <- intersect(g2m.genes, rownames(seuset))
+# Apply scoring
+seuset <- CellCycleScoring(seuset, s.features =  s.genes, g2m.features =  g2m.genes, set.ident =  TRUE)
+
+# Rtsne,  top var genes
+allvars <- apply(expmat, 1, var)
+topvars <- names(sort(allvars, dec =  TRUE))[1:1000]
+topvarmat <- expmat[topvars, ]
+fname <- "data/rtsne.rda"
+if(!file.exists(fname)){
+    set.seed(1)
+    rtsne <- Rtsne(t(topvarmat))
+    save(rtsne, file =  fname)
+}else{load(fname)}
+
+# Coloring cell lines
+x <- setNames(rtsne$Y[, 1], colnames(topvarmat))
+y <- setNames(rtsne$Y[, 2], colnames(topvarmat))
+mycols <- rep("black", ncol(topvarmat))
+mycols[grep("be2c", colnames(topvarmat))] <- col_be2c
+mycols[grep("kelly", colnames(topvarmat))] <- col_kelly
+png("plots/006b_tsne_seurat_celllines.png", w =  3000, h =  3000, res =  600)
+plot(x, y, pch =  20, xlab =  "TSNE1", ylab =  "TSNE2", main =  "TSNE clustering of KELLY and BE2C", 
+     col =  mycols, xlim =  c(min(x), max(x)*1.5))
+mtext(paste0(length(x), " cells"), cex =  0.8, font =  2)
+grid()
+legend("bottomright", pch =  19, col =  c(col_be2c, col_kelly), legend =  c("BE2C", "Kelly"))
+dev.off()
+
+# Color cell cycle phases
+phases <- setNames(as.character(seuset@meta.data$Phase), rownames(seuset@meta.data))
+mycols <- phases
+mycols[phases == "G1"] <- "salmon"
+mycols[phases == "S"] <- "cornflowerblue"
+mycols[phases == "G2M"] <- "seagreen"
+mycols <- mycols[colnames(topvarmat)]
+png("plots/006b_tsne_seurat_celllcycle.png", w =  3000, h =  3000, res =  600)
+plot(x, y, pch =  20, xlab =  "TSNE1", ylab =  "TSNE2", main =  "TSNE clustering of KELLY and BE2C", 
+     col =  mycols, xlim =  c(min(x), max(x)*1.5))
+mtext(paste0(length(x), " cells"), cex =  0.8, font =  2)
+grid()
+legend("bottomright", pch =  19, col =  c("salmon", "cornflowerblue", "seagreen"), 
+       legend =  c("G1", "S", "G2M"))
+dev.off()
+
+# Barplot cell cycle distribution
+kphases <- phases[grep("kelly", names(phases))]
+bphases <- phases[grep("be2c", names(phases))]
+ktab <- table(kphases)[c("G1", "S", "G2M")]
+btab <- table(bphases)[c("G1", "S", "G2M")]
+
+png("plots/006b_phases_barplots.png", w =  3000, h =  3000, res =  500)
+par(mfrow =  c(1, 2))
+max <- max(c(ktab, btab))*1.2
+bp <- barplot(ktab, col =  c("salmon", "cornflowerblue", "seagreen"), main =  "Kelly", 
+              ylim =  c(0, max), ylab =  "nr. cells")
+mtext(paste0(length(kphases), " cells"), cex =  0.8)
+perc <- round(100*ktab/length(kphases), 2)
+text(bp, ktab, labels =  paste0(perc, "%"), pos =  3, font =  3)
+bp <- barplot(btab, col =  c("salmon", "cornflowerblue", "seagreen"), main =  "BE2C", 
+              ylim =  c(0, max))
+mtext(paste0(length(bphases), " cells"), cex =  0.8)
+perc <- round(100*btab/length(bphases), 2)
+text(bp, btab, labels =  paste0(perc, "%"), pos =  3, font =  3)
+dev.off()
+par(mfrow =  c(1, 1))
+
+## Read number clustering
+# Color nr. reads coloring
+nreads <- apply(rawcounts, 2, sum)
+colfunc  <-  colorRampPalette(c("cornflowerblue", "red3", "orange"))
+mycols <- colfunc(100)[as.numeric(cut(nreads, breaks =  100))]
+png("plots/006b_tsne_seurat_nreads.png", w =  3000, h =  3000, res =  600)
+layout(matrix(1:2, ncol =  2),  width  =   c(3, 1), height  =   c(1, 1))
+par(mar =  c(5.1, 4.1, 4.1, 0.1))
+plot(x, y, pch =  20, xlab =  "TSNE1", ylab =  "TSNE2", main =  "TSNE clustering", col =  mycols, 
+     xlim =  c(min(x), max(x)*1.5))
+mtext(paste0(length(x), " cells"), cex =  0.8, font =  2)
+grid()
+par(mar =  c(5.1, 0.1, 4.1, 0.1))
+plot(c(0, 2), c(0, 1), type =  'n', axes =  F, xlab =  '', ylab =  '', main =  'Nr. Reads (k)')
+legend_image <- as.raster(rev(matrix(colfunc(100),  ncol =  1)))
+rasterImage(legend_image, 0, 0, 1, 1)
+text(x =  1.5, y =  seq(0, 1, l =  5), labels =  round(quantile(nreads/1E3)))
+dev.off()
+
+# Read counts distributions
+png("plots/006b_nreads_lineplots.png", w =  3000, h =  3000, res =  600)
+knreads <- nreads[grep("kelly", names(nreads))]
+bnreads <- nreads[grep("be2c", names(nreads))]
+plot(density(knreads), col =  col_kelly, lwd =  3, ylim =  c(0, 4e-5), main =  "Nr. reads/cell distribution")
+lines(density(bnreads), col =  col_be2c, lwd =  3)
+legend("topright", legend =  c(
+    paste0("Kelly (mean =  ", round(mean(knreads), 2), ")"), 
+    paste0("BE2C (mean =  ", round(mean(bnreads), 2), ")")
+), lwd =  3, col =  c(col_kelly, col_be2c))
+dev.off()
+
+## Regress out cell cycle and n. UMI
