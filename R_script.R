@@ -1,5 +1,11 @@
 ### Setup working environment
 ### set your home directory
+homedir <- getwd()
+setwd(homedir)
+dir.creat("data")
+dir.create("results")
+dir.create("plots")
+
 ### load libraries (if library is not available, it will be installed)
 
 if (!requireNamespace("BiocManager",quietly=TRUE)){
